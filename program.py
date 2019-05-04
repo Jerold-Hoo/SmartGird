@@ -58,7 +58,6 @@ if __name__ == '__main__':
     res.to_sql('A_res',engine,if_exists='replace')
 
     #plot('test:MAX=1000,SPEED=200,INIT=0,CRate=95,DisCRate=95',engine)
-
     #test(engine)
 
 
