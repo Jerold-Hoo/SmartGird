@@ -39,7 +39,7 @@ class Para_PriceTable:
 
     def __set_saleprice(self, day, conn):
         sqlstr = ''.join(["select ID,BeginTime,EndTime,SalePrice as Price,'sale' as ptype from Mod_PriceTableSale where BeginTime >= '", day
-                          , "' and EndTime < dateadd(dd,1,'", day, "')"])
+                          , "' and BeginTime < dateadd(dd,1,'", day, "')"])
         self.sale_table = pd.read_sql(sqlstr, conn)
 
     # 根据时间获取买价表时期priceperiod

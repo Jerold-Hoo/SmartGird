@@ -106,7 +106,8 @@ def Do_policy(timenow, timeD , policy, buypriceNow, salepriceNow, storage, load,
     loadrow = load.get_real_DF(timenow, timenow + timeD).loc[0,:]
     generow = generator.get_real_DF(timenow, timenow + timeD).loc[0,:]
     money_useOri = max(0,buypriceNow *(loadrow['SUMKWH']-generow['SUMKWH']))
-    plan = dayplan.get_plan(timenow, timenow + timeD).loc[0,:]
+    plans = dayplan.get_plan(timenow, timenow + timeD)
+    plan = plans.loc[plans.index[0],:]
     BuyorSale = plan['BuyorSale']
     planNum = plan['Num']
 

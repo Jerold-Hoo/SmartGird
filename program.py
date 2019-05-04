@@ -55,7 +55,7 @@ if __name__ == '__main__':
     res = MA.gird_model('test','2018-10-01',15,engine)
     #res = MA.gird_model('Eng','2018-02-03',30,engine)
     print(res)
-    #res.to_sql('A_res',engine,if_exists='replace')
+    res.to_sql('A_res',engine,if_exists='replace')
 
     #plot('test:MAX=1000,SPEED=200,INIT=0,CRate=95,DisCRate=95',engine)
 
