@@ -8,21 +8,29 @@
 import pandas as pd
 from datetime import *
 from Algorithm import *
+import random
 
 class Para_PriceTable:
 
-    def __init__(self,day,conn):
+    def __init__(self,day,conn,frash_ratio=0.2):
         self.pp_dictbuy = {}
         self.day = day
         self.__set_buyprice(day, conn)
+        self.stdbuyDF = self.buy_table.copy()
         self.__set_saleprice(day, conn)
+        self.stdsaleDF = self.sale_table.copy()
+        self.frash_ratio = frash_ratio
+        self.conn = conn
 
     def __get_buypp_by_idx(self,idx,row):
+        priceperiod = Para_Priceperiod(row['ID'], row['Price'], row['BeginTime'], row['EndTime'])
+        """
         if self.pp_dictbuy.get(idx) is None:
             priceperiod = Para_Priceperiod(row['ID'],row['Price'],row['BeginTime'],row['EndTime'])
             self.pp_dictbuy[idx] = priceperiod
         else:
             priceperiod = self.pp_dictbuy[idx]
+        """
         return priceperiod
 
     def __get_pp_by_betimeptype(self,row):
@@ -41,6 +49,25 @@ class Para_PriceTable:
         sqlstr = ''.join(["select ID,BeginTime,EndTime,SalePrice as Price,'sale' as ptype from Mod_PriceTableSale where BeginTime >= '", day
                           , "' and BeginTime < dateadd(dd,1,'", day, "')"])
         self.sale_table = pd.read_sql(sqlstr, conn)
+
+    def refrash(self,timenow,IsRandom=True):
+        # 随机变化
+        if IsRandom:
+            for idx in self.buy_table.index:
+                if self.buy_table.loc[idx, 'EndTime'] >= timenow:
+                    numBuy = random.uniform(self.frash_ratio * -1,self.frash_ratio)
+                    numSale = random.uniform(self.frash_ratio * -1, self.frash_ratio)
+                    self.buy_table.loc[idx,'Price'] = (1 + numBuy) * self.stdbuyDF.loc[idx,'Price']
+                    self.sale_table.loc[idx, 'Price'] = (1 + numSale) * self.stdsaleDF.loc[idx,'Price']
+                    if self.sale_table.loc[idx, 'Price'] >= self.buy_table.loc[idx,'Price']:
+                        self.sale_table.loc[idx, 'Price'] = self.buy_table.loc[idx,'Price'] * 0.95
+        else:
+            self.__set_buyprice(self.day, self.conn)
+            self.__set_saleprice(self.day, self.conn)
+
+        #print('price refrash:',self.sale_table[(self.sale_table['BeginTime']<=timenow) & (self.sale_table['EndTime']>timenow)].reset_index(drop=True).loc[0,'Price'])
+        #print('price refrash:',self.stdsaleDF[(self.stdsaleDF['BeginTime'] <= timenow) & (self.stdsaleDF['EndTime'] > timenow)].reset_index(drop=True).loc[0, 'Price'])
+
 
     # 根据时间获取买价表时期priceperiod
     def get_PP_bytime_buy(self, time):
@@ -120,22 +147,6 @@ class Para_PriceTable:
 
         return res_list
 
-# 用于在循环中保存是否时间中已经使用过的用电和已经满足的负载
-class Para_UseLog:
-    def __init__(self):
-        self.df = pd.DataFrame([],columns=['begintime','endtime','UseGene','DoLoad'])
-
-    def get_LogRow(self,begintime,endtime):
-        df = self.df[(self.df['begintime'] == begintime) & (self.df['endtime']==endtime)]
-        if len(df) == 0:
-            return None
-        else:
-            return df.iloc[0,:]
-
-    def Add_Row(self,begintime,endtime,UseGene,DoLoad):
-        self.df = self.df.append(pd.DataFrame([[begintime,endtime,UseGene,DoLoad]]
-                                    ,columns=['begintime','endtime','UseGene','DoLoad']))
-
 class Para_Priceperiod:
 
     def __init__(self, id, price, begintime, endtime, ptype='buy'):
@@ -166,7 +177,7 @@ class Para_Policy:
 
 class Para_DoLog:
 
-    def __init__(self,begintime,endtime,policy,policyNum,plan='',planNum=0,planprice=0,planbuy=0
+    def __init__(self,begintime,endtime,policy,policyNum,plan='',planNum=0,planprice=0,planbuy=0,buy=0,sale=0
                  ,plansale=0,charge=0,discharge=0,money_use=0,money_useOri=0,storage_KWH=0,price_buy=0,price_sale=0
                  ,real_gene=0,real_load=0):
         self.begintime = begintime
@@ -187,17 +198,35 @@ class Para_DoLog:
         self.price_sale = price_sale
         self.real_gene = real_gene
         self.real_load = real_load
+        self.buy = buy
+        self.sale = sale
 
     def tolist(self):
         return [self.begintime,self.endtime,self.policy,self.policyNum,self.plan,self.planNum,self.planprice
-            ,self.planbuy,self.plansale,self.charge,self.discharge,self.money_use,self.money_useOri,self.storage_KWH
+            ,self.planbuy,self.plansale,self.buy,self.sale,self.charge,self.discharge,self.money_use,self.money_useOri,self.storage_KWH
             ,self.price_buy,self.price_sale,self.real_gene,self.real_load]
 
     @staticmethod
     def get_names():
         return ['begintime','endtime','policy','policyNum','plan','planNum','planprice'
-            ,'planbuy','plansale','charge','discharge','money_use','money_useOri','storage_KWH'
+            ,'planbuy','plansale','buy','sale','charge','discharge','money_use','money_useOri','storage_KWH'
             ,'price_buy','price_sale','real_gene','real_load']
+
+# 用于在循环中保存是否时间中已经使用过的用电和已经满足的负载
+class Para_UseLog:
+    def __init__(self):
+        self.df = pd.DataFrame([],columns=['begintime','endtime','UseGene','DoLoad'])
+
+    def get_LogRow(self,begintime,endtime):
+        df = self.df[(self.df['begintime'] == begintime) & (self.df['endtime']==endtime)]
+        if len(df) == 0:
+            return None
+        else:
+            return df.iloc[0,:]
+
+    def Add_Row(self,begintime,endtime,UseGene,DoLoad):
+        self.df = self.df.append(pd.DataFrame([[begintime,endtime,UseGene,DoLoad]]
+                                    ,columns=['begintime','endtime','UseGene','DoLoad']))
 
 if __name__ == '__main__':
 

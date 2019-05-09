@@ -11,8 +11,9 @@ import sqlalchemy as sql
 import matplotlib.pyplot as plt
 import ModelAlgo as MA
 
-def plot(name,engine):
-    SQLstr = ''.join(["select * from A_resAll where name = '",name,"' order by begintime"])
+
+def plot(resID,engine):
+    SQLstr = ''.join(["select * from A_resAll where ResID = ",str(resID)," order by begintime"])
     df = pd.read_sql(SQLstr,engine)
 
     ax1 = plt.subplot(311)
@@ -20,25 +21,31 @@ def plot(name,engine):
     ax3 = plt.subplot(313)
     ax1.plot(df['begintime'], df['real_gene'])
     ax1.plot(df['begintime'], df['real_load'])
-    ax1.plot(df['begintime'], df['charge_from_gene'] + df['charge_from_buy'])
-    ax1.plot(df['begintime'], df['charge_from_buy'] + df['buy_to_load'])
-    #ax1.plot(df['begintime'], df['buy_to_load'])
-    #ax1.plot(df['begintime'], df['gene_to_load'])
-    #ax1.plot(df['begintime'], df['storage_KWH'])
-    ax1.legend(['real_gene', 'real_load', 'charge', 'buy'])
+    ax1.plot(df['begintime'], df['charge'])
+    ax1.plot(df['begintime'], df['discharge'])
+    ax1.plot(df['begintime'], df['buy'])
+    ax1.plot(df['begintime'], df['sale'])
+    ax1.legend(['real_gene', 'real_load', 'charge', 'discharge', 'buy', 'sale'])
 
-    ax2.plot(df['begintime'], df['price_buy'])
-    ax2.plot(df['begintime'], df['price_buyOri'])
-    #ax2.plot(df['begintime'], df['price_buy_std'])
-    ax2.legend(['All_buy_UseMoney', 'Ori_buy_UseMoney'])
+    ax2.plot(df['begintime'], df['planbuy'])
+    ax2.plot(df['begintime'], df['plansale'])
+    ax2.legend(['planbuy', 'plansale'])
 
-    ax3.plot(df['begintime'], df['price_buy_std'])
-    ax3.legend(['price'])
+    ax3.plot(df['begintime'], df['price_buy'])
+    ax3.plot(df['begintime'], df['price_sale'])
+    ax3.plot(df['begintime'], df['planprice'])
+    ax3.legend(['price_buy','price_sale','planprice'])
     plt.show()
 
 def test(engine):
     import Para
-    pt = Para.Para_DayAheadPlan('2018-10-01',engine)
+    pt = Para.Para_PriceTable('2018-10-01',engine)
+    print(pt.buy_table)
+    print(pt.sale_table)
+    pt.refrash(datetime(2018,10,1,10))
+    print(pt.buy_table)
+    print(pt.sale_table)
+
     #a = pt.plandf[(pt.plandf['BeginTime'] >= datetime(2018,10,1,4,15)) & (pt.plandf['BeginTime'] <= datetime(2018,10,1,6,15))]
 
     #print(a)
@@ -51,13 +58,17 @@ def test(engine):
 if __name__ == '__main__':
 
     engine = sql.create_engine('mssql+pyodbc://sa:2019newpass.7142sql@118.123.7.142:1433/GIRD_EN?driver=SQL+Server')
+    #import Para
 
-    res = MA.gird_model('test','2018-10-01',15,engine)
-    #res = MA.gird_model('Eng','2018-02-03',30,engine)
-    print(res)
+    #dayplan = Para.Para_DayAheadPlan('2018-10-01',engine)
+    #plan = dayplan.get_plan(datetime(2018,10,1,17), datetime(2018,10,2))
+    #print(plan)
+
+    res = MA.gird_model('test','2018-10-01',15,engine,priceRatio=1,geneRatio=1,loadRatio=1)
+    #print(res)
     res.to_sql('A_res',engine,if_exists='replace')
 
-    #plot('test:MAX=1000,SPEED=200,INIT=0,CRate=95,DisCRate=95',engine)
+    #plot(2,engine)
     #test(engine)
 
 

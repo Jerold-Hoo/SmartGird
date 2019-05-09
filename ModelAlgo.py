@@ -33,7 +33,10 @@ def gird_model_dynamic(timenow,storage,load,generator,pricetable,dayplan):
         #period_gene_predict = generator.get_predict_KWHSUM(begintime=pp_higher.begintime, endtime=pp_higher.endtime) # 时段内发电量
 
         # 计算此时段是否需要在初始时刻留电 除以放电比例
+
         charge_target = load.get_need_KWH(pp_higher, generator, storage, dayplan) / storage.get_disC_rate()
+        #print('PP:',pp_higher.begintime,pp_higher.endtime,charge_target)
+
         # 如果此更高价时段有用电缺口
         if charge_target > 0:
 
@@ -55,7 +58,7 @@ def gird_model_dynamic(timenow,storage,load,generator,pricetable,dayplan):
                     if (pp_lower.price / storage.get_disC_rate() / storage.get_C_rate() < pp_higher.price
                         and (pp_lower.id not in can_charged_dict.keys() or can_charged_dict[pp_lower.id] != 0) ):
 
-                        thisplan = dayplan.get_plan()
+                        #thisplan = dayplan.get_plan()
 
                         # 如果该时段没有充过,则预期可充电量为总预期可充电量
                         if pp_lower.id not in can_charged_dict.keys():
@@ -152,7 +155,7 @@ def Do_policy(timenow, timeD , policy, buypriceNow, salepriceNow, storage, load,
     storage.discharge(can_useSt)
     Do_log = Para_DoLog(timenow, timenow + timeD, policy.charge_Or_dis, policy.Num, plan=plan['BuyorSale'], planNum=planNum,planprice=plan['Price']
                         , planbuy=planbuy, plansale=plansale, charge=need_charge,discharge=can_useSt
-                        , money_use=money_use, money_useOri=money_useOri
+                        , money_use=money_use, money_useOri=money_useOri, buy=buy, sale=sale
                         , storage_KWH=storage.get_SOCKWh(), price_buy=buypriceNow, price_sale=salepriceNow
                         , real_gene=generow['SUMKWH'], real_load=loadrow['SUMKWH'])
 
@@ -277,14 +280,14 @@ def Do_policy(timenow, timeD , policy, buypriceNow, salepriceNow, storage, load,
 
     return Do_log
 
-def gird_model(name,day,timeDs,engine):
+def gird_model(name,day,timeDs,engine,priceRatio=0.2,geneRatio=0.2,loadRatio=0.1):
     #pd.set_option('display.max_columns', None)
     #pd.set_option('display.max_rows', None)
     res = []
-    generator = Generator(name, day, engine)
-    load = Load(name, day, engine)
+    generator = Generator(name, day, engine,frash_ratio=geneRatio)
+    load = Load(name, day, engine,frash_ratio=loadRatio)
     storage = Storage(name, engine)
-    pricetable = Para_PriceTable(day, engine)
+    pricetable = Para_PriceTable(day, engine,frash_ratio=priceRatio)
     dayplan = Para_DayAheadPlan(day,engine)
     timenow = datetime(int(day[0:4]), int(day[5:7]), int(day[8:10]))
     timeD = timedelta(minutes=timeDs)
@@ -295,5 +298,8 @@ def gird_model(name,day,timeDs,engine):
         log = Do_policy(timenow, timeD, policy, pricetable.get_PP_bytime_buy(timenow).price, pricetable.get_PP_bytime_sale(timenow).price, storage, load, generator, dayplan)
         res.append(log.tolist())
         timenow += timeD
+        generator.refrash(timenow)
+        load.refrash(timenow)
+        pricetable.refrash(timenow)
 
     return pd.DataFrame(res,columns=Para_DoLog.get_names())

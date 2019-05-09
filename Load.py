@@ -7,6 +7,7 @@
 
 import pandas as pd
 from datetime import *
+import random
 from Algorithm import *
 
 class Load:
@@ -14,10 +15,14 @@ class Load:
         Load Model
     """
 
-    def __init__(self, name, day, conn):
+    def __init__(self, name, day, conn, frash_ratio=0.1):
         self.name = name
         self.__set_predict_load(day, conn)
         self.__set_real_load(day, conn)
+        self.frash_ratio = frash_ratio
+        self.stdDF = self.real_DF.copy()
+        self.day = day
+        self.conn = conn
 
     def __set_predict_load(self, day, conn):
         sqlstr = ''.join(["select [begintime],[endtime],[beginvalue],[endvalue],[SUMKWH] from Mod_LoadPredict_S where Name = '"
@@ -28,6 +33,19 @@ class Load:
         sqlstr = ''.join(["select [begintime],[endtime],[beginvalue],[endvalue],[SUMKWH] from Mod_Load_S where Name = '"
                              , self.name, "' and begintime >= '", day, "' and begintime < dateadd(dd,1,'", day, "') order by begintime"])
         self.real_DF = pd.read_sql(sqlstr, conn)
+
+    def refrash(self,timenow,IsRandom=True):
+        # 随机变化
+        if IsRandom:
+            for idx in self.real_DF.index:
+                if self.real_DF.loc[idx, 'endtime'] >= timenow:
+                    numpre = random.uniform(self.frash_ratio * -1,self.frash_ratio)
+                    numreal = random.uniform(self.frash_ratio * -1, self.frash_ratio)
+                    self.predict_DF.loc[idx, 'SUMKWH'] = (1 + numpre) * self.stdDF.loc[idx,'SUMKWH']
+                    self.real_DF.loc[idx, 'SUMKWH'] = (1 + numreal) * self.stdDF.loc[idx,'SUMKWH']
+        else:
+            self.__set_predict_gene(self.day, self.conn)
+            self.__set_real_gene(self.day, self.conn)
 
     def get_predict_DF(self,begintime,endtime):
         return Algorithms.get_subDF_byTime(self.predict_DF, begintime, endtime)
@@ -49,7 +67,7 @@ class Load:
         need_perserve_max = 0  # 此段中需要的存储空间的最大值
         nedd_KWH = 0
         begintime = pp_higher.begintime
-        endtime = pp_higher.begintime
+        endtime = pp_higher.endtime
 
         loaddf = self.get_predict_DF(begintime,endtime)
         genedf = generator.get_predict_DF(begintime,endtime)
